@@ -1,0 +1,11 @@
+name: sonda
+# Workflow mínimo, temporário: existe só para responder uma pergunta —
+# esta conta consegue executar Actions? Se rodar aqui (repositório público,
+# execução sempre gratuita) e não no privado, a causa está no faturamento do
+# privado, não no arquivo de workflow.
+on: workflow_dispatch
+jobs:
+  responde:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "runner disponível"
