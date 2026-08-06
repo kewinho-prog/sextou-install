@@ -21,7 +21,11 @@
 set -uo pipefail
 
 REPO="kewinho-prog/PrimaCore"
-DESTINO="$HOME/.prima/core"
+# Destino configurável: permite provar a instalação inteira num diretório
+# descartável antes de mandá-la para a máquina de alguém. Sem isso, o único
+# jeito de testar este script é rodá-lo de verdade — e "testei mentalmente"
+# não é teste.
+DESTINO="${PRIMA_CORE:-$HOME/.prima/core}"
 
 if [[ -t 1 ]]; then V=$'\033[32m'; A=$'\033[33m'; E=$'\033[31m'; D=$'\033[2m'; F=$'\033[0m'
 else V=''; A=''; E=''; D=''; F=''; fi
