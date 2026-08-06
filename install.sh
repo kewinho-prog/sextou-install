@@ -88,17 +88,25 @@ LOGIN
 fi
 ok "acesso confirmado"
 
+# Ensina o git a usar o acesso guardado, por HTTPS. Sem isto, quem já tinha o
+# cliente configurado para SSH tenta clonar por SSH — e falha com "permissão
+# negada (publickey)", que parece falta de acesso ao repositório quando é só
+# falta de uma chave SSH que ninguém pediu.
+gh auth setup-git >/dev/null 2>&1 || true
+
 # ── Baixar
 echo ""
 if [[ -d "$DESTINO/.git" ]]; then
   echo "  Já existe uma instalação. Atualizando..."
-  git -C "$DESTINO" fetch --quiet origin && git -C "$DESTINO" merge --ff-only --quiet origin/main 2>/dev/null \
+  git -C "$DESTINO" fetch --quiet origin 2>/dev/null && git -C "$DESTINO" merge --ff-only --quiet origin/main 2>/dev/null \
     || aviso "não deu para atualizar automaticamente — veja: git -C $DESTINO status"
   ok "em $DESTINO"
 else
   echo "  Baixando..."
   mkdir -p "$(dirname "$DESTINO")"
-  if ! gh repo clone "$REPO" "$DESTINO" -- --quiet 2>/dev/null; then
+  # git clone por HTTPS explícito, e não `gh repo clone`: aquele respeita a
+  # preferência de protocolo já configurada na máquina, que pode ser SSH.
+  if ! git clone --quiet "https://github.com/$REPO.git" "$DESTINO" 2>/dev/null; then
     falta "não consegui baixar o repositório" \
       "ou o seu acesso ainda não foi liberado, ou o nome do repositório mudou" \
       "peça acesso de leitura a $REPO a quem te entregou isto"
