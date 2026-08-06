@@ -13,7 +13,7 @@ O que vai acontecer:
 5. Você confere e roda de novo com `--aplicar`.
 6. Termina com `prima ola`.
 
-Leva alguns minutos e **não precisa de chave nenhuma**. O modelo local (~6 GB) é um segundo passo, separado, para quando você quiser.
+Leva alguns minutos e **não precisa de chave nenhuma**. O modelo local (~6 GB) é um segundo passo, separado, conduzido pelo próprio roadmap depois da instalação.
 
 ---
 
