@@ -1,7 +1,7 @@
 # Instalar a Prima
 
 ```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/kewinho-prog/prima-install/main/install.sh)"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/kewinho-prog/sextou-install/main/install.sh)"
 ```
 
 O que vai acontecer:
