@@ -1,19 +1,23 @@
-# Instalar a Prima
+# Instalar o Sextou
 
 ```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/kewinho-prog/prima-install/main/install.sh)"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/kewinho-prog/sextou-install/main/install.sh)"
 ```
 
 O que vai acontecer:
 
 1. **Confere o que falta** e para, mostrando o comando exato. Não instala nada à força.
 2. **Pede seu login** no repositório, pelo navegador. É o único jeito de baixar um repositório privado; o acesso fica no chaveiro do seu computador.
-3. **Baixa** em `~/.prima/core`.
+3. **Baixa** em `~/.sextou/core`.
 4. **Mostra tudo que mudaria** — e não muda nada.
 5. Você confere e roda de novo com `--aplicar`.
-6. Termina com `prima ola`.
+6. Termina com `sextou ola`.
 
 Leva alguns minutos e **não precisa de chave nenhuma**. O modelo local (~6 GB) é um segundo passo, separado, conduzido pelo próprio roadmap depois da instalação.
+
+## Já tinha instalado quando se chamava Prima?
+
+Rode o mesmo comando acima. Ele move sozinho o que estava em `~/.prima` para `~/.sextou` — o programa e o seu estado (identidade, marcas, aprovações, progresso, telemetria). Nada é apagado, e uma explicação fica no lugar antigo. Se você tinha exportado `PRIMA_ESTADO` ou `PRIMA_CORE`, as duas continuam valendo.
 
 ---
 

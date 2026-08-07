@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # install.sh — o único arquivo público desta instalação.
 #
-#   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/kewinho-prog/prima-install/main/install.sh)"
+#   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/kewinho-prog/sextou-install/main/install.sh)"
 #
 # ── Por que este arquivo existe separado
 #
-# O repositório da Prima é privado, e o servidor de arquivos brutos não entrega
+# O repositório do SextouCore é privado, e o servidor de arquivos brutos não entrega
 # repositório privado sem autenticação. Então o começo da instalação mora aqui,
 # num repositório público que contém APENAS este script: nenhuma skill, nenhum
 # motor, nenhuma regra, nenhum caminho de máquina. Nada aqui tem valor se
@@ -20,12 +20,31 @@
 # livre. A forma com cano simplesmente não termina.
 set -uo pipefail
 
-REPO="kewinho-prog/PrimaCore"
+REPO="kewinho-prog/SextouCore"
 # Destino configurável: permite provar a instalação inteira num diretório
 # descartável antes de mandá-la para a máquina de alguém. Sem isso, o único
 # jeito de testar este script é rodá-lo de verdade — e "testei mentalmente"
 # não é teste.
-DESTINO="${PRIMA_CORE:-$HOME/.prima/core}"
+#
+# SEXTOU_CORE é o nome de hoje; PRIMA_CORE continua sendo aceito porque quem
+# exportou a variável antiga não tem como saber que o produto mudou de nome.
+DESTINO="${SEXTOU_CORE:-${PRIMA_CORE:-$HOME/.sextou/core}}"
+ANTIGO="$HOME/.prima/core"
+
+# Quem instalou como Prima tem um clone git em ~/.prima/core. Se este script
+# simplesmente apontasse para o caminho novo, ele CLONARIA DE NOVO — duas
+# cópias na máquina, e a antiga ficando velha em silêncio. Então o clone
+# antigo é movido, uma vez, antes de qualquer decisão de baixar.
+if [[ ! -d "$DESTINO/.git" && -d "$ANTIGO/.git" ]]; then
+  mkdir -p "$(dirname "$DESTINO")"
+  if mv "$ANTIGO" "$DESTINO" 2>/dev/null; then
+    printf '  o programa mudou de nome: %s agora fica em %s\n' "$ANTIGO" "$DESTINO"
+    # O endereço do repositório também mudou. O GitHub redireciona, mas deixar
+    # o endereço velho gravado é dívida que aparece no dia em que ele parar.
+    git -C "$DESTINO" remote set-url origin "https://github.com/$REPO.git" 2>/dev/null || true
+    rmdir "$(dirname "$ANTIGO")" 2>/dev/null || true
+  fi
+fi
 
 if [[ -t 1 ]]; then V=$'\033[32m'; A=$'\033[33m'; E=$'\033[31m'; D=$'\033[2m'; F=$'\033[0m'
 else V=''; A=''; E=''; D=''; F=''; fi
@@ -35,13 +54,13 @@ falta(){ printf '\n  %s✗ %s%s\n    %spor quê:%s %s\n    %so que fazer:%s %s\n
 
 cat <<'ABERTURA'
 
-  Prima
+  Sextou
   Assistente operacional que roda na sua máquina, com as suas chaves.
 
   Isto vai:
     1. conferir o que falta (e parar, sem instalar nada à força)
     2. pedir seu login no repositório, pelo navegador
-    3. baixar em ~/.prima/core
+    3. baixar em ~/.sextou/core
     4. mostrar tudo que mudaria — sem mudar nada
     5. você confere e confirma
 
@@ -135,6 +154,6 @@ cat <<APLICAR
 
       bash $DESTINO/instalador/instalar.sh --aplicar
 
-  Depois: prima ola
+  Depois: sextou ola
 
 APLICAR
