@@ -66,26 +66,62 @@ cat <<'ABERTURA'
 
 ABERTURA
 
-[[ "$(uname)" == "Darwin" ]] || { falta "isto só foi testado em macOS" "os caminhos e os agentes são de macOS" "instale à mão a partir do repositório"; exit 1; }
+# macOS e Linux rodam isto num shell de verdade. Windows não tem shell POSIX
+# nativo — mas o Git for Windows traz um (MSYS2/Git Bash), e é dentro dele que
+# este script deve ser colado. `uname` ali responde MINGW64_NT-* (ou MSYS_NT-*,
+# CYGWIN_NT-*, dependendo da instalação), nunca "Windows" — por isso o teste é
+# por prefixo, não por igualdade.
+SO="$(uname)"
+case "$SO" in
+  Darwin|Linux) ;;
+  MINGW*|MSYS*|CYGWIN*) ;;
+  *) falta "sistema não suportado: $SO" "os caminhos e os agentes são pensados para macOS, Linux e Windows" \
+       "no Windows, instale o Git for Windows (git-scm.com) e rode este comando de novo dentro do Git Bash"
+     exit 1 ;;
+esac
+
+# Sem Homebrew (todo Windows, e Linux que não o usa), a sugestão de instalação
+# não pode ser um `brew install` que não existe nessa máquina — isso trocaria
+# um erro claro por um comando que falha calado.
+TEM_BREW=0; command -v brew >/dev/null 2>&1 && TEM_BREW=1
 
 falhas=0
 echo "  Conferindo:"
 
 if command -v git >/dev/null 2>&1; then ok "git"
-else falta "git não está instalado" "é como o repositório é baixado e atualizado" "rode: xcode-select --install"; falhas=$((falhas+1)); fi
+else
+  if (( TEM_BREW == 1 )); then
+    falta "git não está instalado" "é como o repositório é baixado e atualizado" "rode: xcode-select --install"
+  else
+    falta "git não está instalado" "é como o repositório é baixado e atualizado" "baixe em https://git-scm.com/downloads (no Windows, isso já traz o Git Bash)"
+  fi
+  falhas=$((falhas+1))
+fi
 
 if command -v node >/dev/null 2>&1 && [[ "$(node -v | sed 's/v//;s/\..*//')" -ge 20 ]]; then
   ok "node $(node -v)"
 else
-  falta "node ausente ou anterior à versão 20" "os motores e o índice de capacidades dependem dele" "rode: brew install node"
+  if (( TEM_BREW == 1 )); then
+    falta "node ausente ou anterior à versão 20" "os motores e o índice de capacidades dependem dele" "rode: brew install node"
+  else
+    falta "node ausente ou anterior à versão 20" "os motores e o índice de capacidades dependem dele" "baixe em https://nodejs.org/ (LTS, versão 20 ou mais nova)"
+  fi
   falhas=$((falhas+1))
 fi
 
 if command -v gh >/dev/null 2>&1; then ok "cliente do repositório"
-else falta "o cliente do repositório não está instalado" "é o único caminho para baixar um repositório privado" "rode: brew install gh"; falhas=$((falhas+1)); fi
+else
+  if (( TEM_BREW == 1 )); then
+    falta "o cliente do repositório não está instalado" "é o único caminho para baixar um repositório privado" "rode: brew install gh"
+  else
+    falta "o cliente do repositório não está instalado" "é o único caminho para baixar um repositório privado" "baixe em https://cli.github.com/ (ou: winget install --id GitHub.cli)"
+  fi
+  falhas=$((falhas+1))
+fi
 
-if [[ -d "$HOME/.codex" ]]; then ok "agente principal"
-else falta "o agente principal não está instalado" "é ele que carrega as capacidades e as regras" "instale-o e rode este comando de novo"; falhas=$((falhas+1)); fi
+if [[ -d "$HOME/.claude" ]]; then ok "agente principal"
+else falta "o agente principal não está instalado" "é ele que carrega as capacidades e as regras" \
+  "instale o Claude Code (https://claude.com/product/claude-code) e rode este comando de novo"; falhas=$((falhas+1)); fi
 
 [[ -d "$HOME/.config/opencode" ]] && ok "agente secundário" || aviso "agente secundário ausente — opcional"
 
