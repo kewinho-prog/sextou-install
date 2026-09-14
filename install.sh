@@ -1,88 +1,85 @@
 #!/usr/bin/env bash
-# install.sh — o único arquivo público desta instalação.
+# install.sh — bootstrap público do Sextou.
 #
-#   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/kewinho-prog/sextou-install/main/install.sh)"
+#   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/kewinho-prog/sextou-install/main/install.sh)" -- \
+#     [--provedor codex|claude|gemini|opencode|local|codex-local]
 #
-# ── Por que este arquivo existe separado
+# Este arquivo é o único público desta instalação: o repositório do
+# SextouCore é privado, e por isso o começo mora aqui.
 #
-# O repositório do SextouCore é privado, e o servidor de arquivos brutos não entrega
-# repositório privado sem autenticação. Então o começo da instalação mora aqui,
-# num repositório público que contém APENAS este script: nenhuma skill, nenhum
-# motor, nenhuma regra, nenhum caminho de máquina. Nada aqui tem valor se
-# alguém copiar.
+# Este script SÓ prepara o terreno — confere pré-requisitos, autentica,
+# baixa (ou reconhece) o SextouCore e delega ao instalador adaptativo do
+# próprio Core, que ainda é CANDIDATO, não publicado como caminho padrão.
+# Se o instalador adaptativo não existir no que foi baixado, este script
+# recusa com um código estável — nunca cai para um caminho legado.
 #
-# ── Por que não `curl | bash`
-#
-# Com o cano, a entrada padrão do script É o próprio script. O login no
-# repositório precisa de um terminal de verdade para você colar o código que
-# aparece no navegador — e sem esse login não há como baixar um repositório
-# privado. A forma com `$(...)` baixa primeiro e roda depois, com o terminal
-# livre. A forma com cano simplesmente não termina.
+# Isto não é prova de que o produto inteiro já foi instalado: quem faz o
+# diagnóstico de verdade (provedor, credenciais, capacidades) é o
+# instalador adaptativo, dentro do Core.
 set -uo pipefail
 
 REPO="kewinho-prog/SextouCore"
-# Destino configurável: permite provar a instalação inteira num diretório
-# descartável antes de mandá-la para a máquina de alguém. Sem isso, o único
-# jeito de testar este script é rodá-lo de verdade — e "testei mentalmente"
-# não é teste.
-#
-# SEXTOU_CORE é o nome de hoje; PRIMA_CORE continua sendo aceito porque quem
-# exportou a variável antiga não tem como saber que o produto mudou de nome.
+# SEXTOU_CORE é o nome de hoje; PRIMA_CORE continua aceito por quem exportou
+# a variável antiga e não tem como saber que o produto mudou de nome.
 DESTINO="${SEXTOU_CORE:-${PRIMA_CORE:-$HOME/.sextou/core}}"
-ANTIGO="$HOME/.prima/core"
-
-# Quem instalou como Prima tem um clone git em ~/.prima/core. Se este script
-# simplesmente apontasse para o caminho novo, ele CLONARIA DE NOVO — duas
-# cópias na máquina, e a antiga ficando velha em silêncio. Então o clone
-# antigo é movido, uma vez, antes de qualquer decisão de baixar.
-if [[ ! -d "$DESTINO/.git" && -d "$ANTIGO/.git" ]]; then
-  mkdir -p "$(dirname "$DESTINO")"
-  if mv "$ANTIGO" "$DESTINO" 2>/dev/null; then
-    printf '  o programa mudou de nome: %s agora fica em %s\n' "$ANTIGO" "$DESTINO"
-    # O endereço do repositório também mudou. O GitHub redireciona, mas deixar
-    # o endereço velho gravado é dívida que aparece no dia em que ele parar.
-    git -C "$DESTINO" remote set-url origin "https://github.com/$REPO.git" 2>/dev/null || true
-    rmdir "$(dirname "$ANTIGO")" 2>/dev/null || true
-  fi
-fi
 
 if [[ -t 1 ]]; then V=$'\033[32m'; A=$'\033[33m'; E=$'\033[31m'; D=$'\033[2m'; F=$'\033[0m'
 else V=''; A=''; E=''; D=''; F=''; fi
 ok()   { printf '  %s✓%s %s\n' "$V" "$F" "$1"; }
 aviso(){ printf '  %s!%s %s\n' "$A" "$F" "$1"; }
-falta(){ printf '\n  %s✗ %s%s\n    %spor quê:%s %s\n    %so que fazer:%s %s\n' "$E" "$1" "$F" "$D" "$F" "$2" "$D" "$F" "$3"; }
+falta(){ printf '\n  %s✗ %s%s\n    %spor quê:%s %s\n    %so que fazer:%s %s\n' "$E" "$1" "$F" "$D" "$F" "$2" "$D" "$F" "$3" >&2; }
+
+# ── Argumentos ─────────────────────────────────────────────────────────
+# Só --provedor é aceito aqui. Desconhecido,
+# duplicado ou sem valor: falha ANTES de qualquer escrita, login ou
+# download. As flags --adaptativo e --aplicar não são aceitas aqui: o
+# bootstrap já escolhe o caminho adaptativo, e aplicar exige
+# uma segunda invocação explícita, depois de conferir a prévia.
+PROVEDOR=""
+VISTOS=" "
+while [[ $# -gt 0 ]]; do
+  flag="$1"
+  case "$flag" in --provedor) ;; *) falta "ARGUMENTO_INVALIDO" "opção não reconhecida" "use apenas --provedor; nome e comando serão definidos pela primeira conversa com a IA"; exit 2;; esac
+  case "$VISTOS" in *" $flag "*) falta "ARGUMENTO_INVALIDO" "opção repetida" "informe cada opção uma vez"; exit 2;; esac
+  if [[ $# -lt 2 || -z "${2//[[:space:]]/}" || "$2" == --* ]]; then
+    falta "ARGUMENTO_INVALIDO" "valor ausente" "informe um valor após cada opção"; exit 2
+  fi
+  VISTOS+="$flag "
+  case "$flag" in
+    --provedor)
+      case "$2" in codex|claude|gemini|opencode|local|codex-local) PROVEDOR="$2" ;; *) falta "ARGUMENTO_INVALIDO" "provedor desconhecido" "escolha codex, claude, gemini, opencode, local ou codex-local"; exit 2;; esac ;;
+  esac
+  shift 2
+done
+[[ "$DESTINO" == /* ]] || { falta "DESTINO_INVALIDO" "caminho deve ser absoluto" "use um caminho completo em SEXTOU_CORE"; exit 2; }
 
 cat <<'ABERTURA'
 
-  Sextou
-  Assistente operacional que roda na sua máquina, com as suas chaves.
+  Sextou — bootstrap (instalador adaptativo: candidato, ainda não publicado)
 
   Isto vai:
     1. conferir o que falta (e parar, sem instalar nada à força)
-    2. pedir seu login no repositório, pelo navegador
-    3. baixar em ~/.sextou/core
-    4. mostrar tudo que mudaria — sem mudar nada
-    5. você confere e confirma
+    2. pedir seu login no repositório, só se ainda faltar, e só com
+       confirmação sua
+    3. conferir o acesso ao repositório, separado do login
+    4. reconhecer um checkout já existente sem mexer nele, ou baixar um
+       novo em ~/.sextou/core
+    5. delegar o diagnóstico e a prévia ao instalador adaptativo do Core
+       — nada é aplicado neste passo
+
+  Isto NÃO é a instalação inteira, e não instala nada sozinho.
 
 ABERTURA
 
-# macOS e Linux rodam isto num shell de verdade. Windows não tem shell POSIX
-# nativo — mas o Git for Windows traz um (MSYS2/Git Bash), e é dentro dele que
-# este script deve ser colado. `uname` ali responde MINGW64_NT-* (ou MSYS_NT-*,
-# CYGWIN_NT-*, dependendo da instalação), nunca "Windows" — por isso o teste é
-# por prefixo, não por igualdade.
 SO="$(uname)"
 case "$SO" in
   Darwin|Linux) ;;
   MINGW*|MSYS*|CYGWIN*) ;;
-  *) falta "sistema não suportado: $SO" "os caminhos e os agentes são pensados para macOS, Linux e Windows" \
+  *) falta "sistema não suportado: $SO" "os caminhos são pensados para macOS, Linux e Windows (Git Bash)" \
        "no Windows, instale o Git for Windows (git-scm.com) e rode este comando de novo dentro do Git Bash"
      exit 1 ;;
 esac
 
-# Sem Homebrew (todo Windows, e Linux que não o usa), a sugestão de instalação
-# não pode ser um `brew install` que não existe nessa máquina — isso trocaria
-# um erro claro por um comando que falha calado.
 TEM_BREW=0; command -v brew >/dev/null 2>&1 && TEM_BREW=1
 
 falhas=0
@@ -91,20 +88,21 @@ echo "  Conferindo:"
 if command -v git >/dev/null 2>&1; then ok "git"
 else
   if (( TEM_BREW == 1 )); then
-    falta "git não está instalado" "é como o repositório é baixado e atualizado" "rode: xcode-select --install"
+    falta "git não está instalado" "é como o repositório é baixado" "rode: xcode-select --install"
   else
-    falta "git não está instalado" "é como o repositório é baixado e atualizado" "baixe em https://git-scm.com/downloads (no Windows, isso já traz o Git Bash)"
+    falta "git não está instalado" "é como o repositório é baixado" "baixe em https://git-scm.com/downloads (no Windows, isso já traz o Git Bash)"
   fi
   falhas=$((falhas+1))
 fi
 
-if command -v node >/dev/null 2>&1 && [[ "$(node -v | sed 's/v//;s/\..*//')" -ge 20 ]]; then
-  ok "node $(node -v)"
+NODE_VERSION="$(node -v 2>/dev/null)"; NODE_STATUS=$?
+if [[ "$NODE_STATUS" == 0 && "$NODE_VERSION" =~ ^v([0-9]{1,3})\.[0-9]+\.[0-9]+$ ]] && (( 10#${BASH_REMATCH[1]} >= 24 )); then
+  ok "node $NODE_VERSION"
 else
   if (( TEM_BREW == 1 )); then
-    falta "node ausente ou anterior à versão 20" "os motores e o índice de capacidades dependem dele" "rode: brew install node"
+    falta "node ausente ou anterior à versão 24" "o instalador adaptativo do Core depende dela" "rode: brew install node"
   else
-    falta "node ausente ou anterior à versão 20" "os motores e o índice de capacidades dependem dele" "baixe em https://nodejs.org/ (LTS, versão 20 ou mais nova)"
+    falta "node ausente ou anterior à versão 24" "o instalador adaptativo do Core depende dela" "baixe em https://nodejs.org/ (versão 24 ou mais nova)"
   fi
   falhas=$((falhas+1))
 fi
@@ -119,53 +117,90 @@ else
   falhas=$((falhas+1))
 fi
 
-if [[ -d "$HOME/.claude" ]]; then ok "agente principal"
-else falta "o agente principal não está instalado" "é ele que carrega as capacidades e as regras" \
-  "instale o Claude Code (https://claude.com/product/claude-code) e rode este comando de novo"; falhas=$((falhas+1)); fi
-
-[[ -d "$HOME/.config/opencode" ]] && ok "agente secundário" || aviso "agente secundário ausente — opcional"
-
 if (( falhas > 0 )); then
   printf '\n  %s pré-requisito(s) faltando. Resolva os itens acima e rode de novo.\n\n' "$falhas" >&2
   exit 1
 fi
 
-# ── Login
+# ── Login: só depois de confirmação explícita, e só se ausente ──────────
 if ! gh auth status >/dev/null 2>&1; then
+  if [[ ! -t 0 || ! -t 1 ]]; then
+    falta "sem login e sem terminal interativo" "o login exige colar um código no navegador — precisa de um terminal de verdade" \
+      "rode este comando num terminal interativo, ou autentique antes com: gh auth login"
+    exit 1
+  fi
   cat <<'LOGIN'
 
   Falta o login. Vai abrir o navegador e mostrar um código de 8 caracteres
   aqui no terminal — é só colar lá e autorizar.
-
-  O acesso fica guardado no chaveiro do seu computador. Depois disso, tudo
-  funciona sozinho.
 
 LOGIN
   read -r -p "  Continuar? [S/n] " r
   [[ "${r:-s}" =~ ^[SsYy]?$ ]] || { echo "  Cancelado."; exit 0; }
   gh auth login --web --git-protocol https || { falta "o login não foi concluído" "sem ele não há como baixar um repositório privado" "rode: gh auth login"; exit 1; }
 fi
-ok "acesso confirmado"
+ok "login presente"
 
-# Ensina o git a usar o acesso guardado, por HTTPS. Sem isto, quem já tinha o
-# cliente configurado para SSH tenta clonar por SSH — e falha com "permissão
-# negada (publickey)", que parece falta de acesso ao repositório quando é só
-# falta de uma chave SSH que ninguém pediu.
-gh auth setup-git >/dev/null 2>&1 || true
 
-# ── Baixar
-echo ""
-if [[ -d "$DESTINO/.git" ]]; then
-  echo "  Já existe uma instalação. Atualizando..."
-  git -C "$DESTINO" fetch --quiet origin 2>/dev/null && git -C "$DESTINO" merge --ff-only --quiet origin/main 2>/dev/null \
-    || aviso "não deu para atualizar automaticamente — veja: git -C $DESTINO status"
-  ok "em $DESTINO"
+# Acesso ao repositório é conferido à parte do login: sessão válida não é
+# permissão de leitura neste repositório específico.
+if ! gh repo view "$REPO" --json nameWithOwner >/dev/null 2>&1; then
+  falta "sem acesso de leitura a $REPO" "o login funcionou, mas esta conta ainda não tem permissão neste repositório" \
+    "peça acesso de leitura a $REPO a quem te entregou isto"
+  exit 1
+fi
+ok "acesso a $REPO confirmado"
+
+# ── Destino: sem migração de ~/.prima, sem fetch/merge automático ───────
+# Uma árvore existente é do usuário; mexer nela sem pedir quebra confiança
+# na primeira execução.
+verificar_ancestrais_symlink() {
+  local atual="$1" pai
+  while [[ "$atual" != "/" && "$atual" != "." && -n "$atual" ]]; do
+    [[ -L "$atual" ]] && return 1
+    pai="$(dirname "$atual")"
+    [[ "$pai" == "$atual" ]] && break
+    atual="$pai"
+  done
+  [[ -L "/" ]] && return 1
+  return 0
+}
+
+if ! verificar_ancestrais_symlink "$DESTINO"; then
+  falta "o caminho de destino passa por um link simbólico" "isso pode apontar para fora do lugar esperado, sem avisar" \
+    "aponte SEXTOU_CORE para um caminho real, sem links simbólicos no meio"
+  exit 1
+fi
+
+if [[ -e "$DESTINO" && ! -d "$DESTINO" ]]; then
+  falta "DESTINO_INVALIDO" "o destino não é diretório" "escolha outro caminho sem apagar o arquivo existente"; exit 1
+fi
+if [[ -e "$DESTINO" ]]; then
+  if [[ -d "$DESTINO/.git" || -f "$DESTINO/.git" ]]; then
+    [[ "$(git -C "$DESTINO" rev-parse --is-inside-work-tree 2>/dev/null)" == true ]] || { falta "CHECKOUT_INVALIDO" "Git não reconhece esta árvore" "preserve o diretório e revise sua origem"; exit 1; }
+    REMOTO="$(git -C "$DESTINO" remote get-url origin 2>/dev/null || true)"
+    case "$REMOTO" in
+      "https://github.com/$REPO.git"|"https://github.com/$REPO"|"git@github.com:$REPO.git"|"ssh://git@github.com/$REPO.git") ;;
+      *)
+        falta "existe algo em $DESTINO, mas não é um checkout de $REPO" \
+          "o remoto configurado é diferente do esperado (ou não existe)" \
+          "mova $DESTINO para outro lugar, ou aponte SEXTOU_CORE para outro caminho, e rode de novo"
+        exit 1 ;;
+    esac
+  elif [[ -n "$(ls -A "$DESTINO" 2>/dev/null)" ]]; then
+    falta "existe algo em $DESTINO que não é um checkout git" "não dá para saber se é seguro sobrescrever" \
+      "esvazie $DESTINO manualmente, ou aponte SEXTOU_CORE para outro caminho, e rode de novo"
+    exit 1
+  fi
+fi
+
+# ── Baixar (só quando não há checkout ainda) ─────────────────────────────
+if [[ -d "$DESTINO/.git" || -f "$DESTINO/.git" ]]; then
+  ok "checkout existente reconhecido em $DESTINO (git não foi tocado)"
 else
   echo "  Baixando..."
-  mkdir -p "$(dirname "$DESTINO")"
-  # git clone por HTTPS explícito, e não `gh repo clone`: aquele respeita a
-  # preferência de protocolo já configurada na máquina, que pode ser SSH.
-  if ! git clone --quiet "https://github.com/$REPO.git" "$DESTINO" 2>/dev/null; then
+  mkdir -p "$(dirname "$DESTINO")" || exit 1
+  if ! git -c credential.helper= -c 'credential.helper=!gh auth git-credential' clone --quiet "https://github.com/$REPO.git" "$DESTINO" 2>/dev/null; then
     falta "não consegui baixar o repositório" \
       "ou o seu acesso ainda não foi liberado, ou o nome do repositório mudou" \
       "peça acesso de leitura a $REPO a quem te entregou isto"
@@ -174,22 +209,52 @@ else
   ok "baixado em $DESTINO"
 fi
 
-# ── Verificação, nunca aplicação direta
+# ── Instalador adaptativo: candidato, sem fallback para caminho legado ───
+ADAPTATIVO="$DESTINO/instalador/instalar.sh"
+if [[ ! -f "$ADAPTATIVO" || -L "$ADAPTATIVO" || ! -f "$DESTINO/instalador/instalar-adaptativo.mjs" || -L "$DESTINO/instalador/instalar-adaptativo.mjs" ]] || ! verificar_ancestrais_symlink "$ADAPTATIVO"; then
+  printf '\n  %s✗ ADAPTIVE_INSTALLER_UNAVAILABLE%s\n' "$E" "$F" >&2
+  printf '    %spor quê:%s este checkout do Core ainda não tem o instalador adaptativo candidato\n' "$D" "$F" >&2
+  printf '    %so que fazer:%s atualize o checkout (%s) para uma versão que inclua instalador/instalar-adaptativo.mjs e rode de novo\n\n' "$D" "$F" "$DESTINO" >&2
+  exit 1
+fi
+
+# ── Delegação: array, sem eval, prévia apenas ────────────────────────────
+ARGS=(--adaptativo)
+[[ -n "$PROVEDOR" ]] && ARGS+=(--provedor "$PROVEDOR")
+
 cat <<'ANTES'
 
-  Agora vem o diagnóstico. Nada é alterado neste passo — você vai ver
-  exatamente o que mudaria antes de decidir.
+  Agora a prévia, dentro do Core: o que foi baixado é código; o que vier
+  a seguir é o diagnóstico do instalador adaptativo — provedor,
+  configuração. Autenticação e capacidades ainda precisam de prova operacional.
 
 ANTES
 
-bash "$DESTINO/instalador/instalar.sh"
+bash "$ADAPTATIVO" "${ARGS[@]}"
+status=$?
 
-cat <<APLICAR
+# Contrato com o Core: 0 é prévia concluída; 130 é cancelamento explícito;
+# qualquer outro valor é falha. Só o primeiro libera a instrução de aplicação.
+if (( status != 0 )); then
+  if (( status == 130 )); then
+    printf '\n  instalação cancelada. Nada foi aplicado.\n' >&2
+    exit 130
+  fi
+  printf '\n  a prévia do instalador adaptativo terminou com falha (código %s).\n' "$status" >&2
+  exit "$status"
+fi
 
-  Se estiver de acordo, instale de verdade com:
+APLICAR_ARGS=(--adaptativo --aplicar)
+[[ -n "$PROVEDOR" ]] && APLICAR_ARGS+=(--provedor "$PROVEDOR")
 
-      bash $DESTINO/instalador/instalar.sh --aplicar
+CMD_EXIBIDO="bash $(printf '%q' "$ADAPTATIVO")"
+for a in "${APLICAR_ARGS[@]}"; do CMD_EXIBIDO+=" $(printf '%q' "$a")"; done
 
-  Depois: sextou ola
+cat <<TEXTOFINAL
 
-APLICAR
+  Isto foi só a prévia (config-preview): nada foi aplicado. Se estiver de
+  acordo, aplique de verdade com:
+
+      $CMD_EXIBIDO
+
+TEXTOFINAL
