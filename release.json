@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "release": "v0.2.0-rc.2",
+  "BOOTSTRAP_SOURCE_SHA": "NAO_PUBLICAR_ATE_COMMIT_A",
+  "core": {
+    "repository": "kewinho-prog/SextouCore",
+    "tag": "v0.2.0-rc.2",
+    "sha": "9c9598795ddb8276c1667e825b3934e2b67ce802"
+  },
+  "platform": {
+    "os": "macOS",
+    "architecture": "arm64",
+    "status": "homologated"
+  },
+  "runtime": {
+    "node_homologated": "24.21.0",
+    "legacy_node_20_transition_owner": "SextouCore updater"
+  },
+  "providers": {
+    "accepted": [
+      "claude",
+      "codex",
+      "gemini",
+      "opencode",
+      "local",
+      "codex-local"
+    ],
+    "bootstrap_asserts_operational": false,
+    "launcher_validation_owner": "SextouCore"
+  },
+  "bootstrap": {
+    "source_sha_status": "replace_with_commit_a_full_sha",
+    "publishable": false,
+    "new_install_only": true,
+    "default_stage": "preview",
+    "automatic_login": false,
+    "automatic_purchase": false,
+    "remote_fallback": false
+  }
+}

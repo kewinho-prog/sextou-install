@@ -1,51 +1,87 @@
-# Sextou — bootstrap (instalador adaptativo, candidato)
+# Sextou — bootstrap público
 
-> **Este caminho ainda é candidato, não publicado como padrão.** Ele existe
-> para permitir começar com Codex (ou outro provedor suportado) sem
-> precisar ter o Claude Code instalado antes. Não é prova de que o produto
-> inteiro já foi instalado — só prepara o terreno e delega o diagnóstico e
-> a prévia ao instalador adaptativo dentro do SextouCore.
+Este repositório contém a porta de entrada pública para uma **instalação nova**
+do SextouCore privado. O bootstrap não instala dependências, não faz login, não
+compra serviços e não usa fallback remoto.
 
-## Comando
+## Instalar
+
+Matriz homologada desta release:
+
+- macOS em Apple Silicon (`arm64`);
+- Node `v24.21.0`;
+- Git e GitHub CLI já autenticado;
+- acesso de leitura a `kewinho-prog/SextouCore`.
+
+> 🚫 **NÃO PUBLICAR AINDA:** `BOOTSTRAP_SOURCE_SHA` será preenchido com o
+> commit A que contém o script. O marcador abaixo precisa ser trocado no commit
+> B antes de divulgar a instalação. Nesse commit B, o manifesto também muda
+> para `source_sha_status: verified_commit_a` e `publishable: true`; o gate
+> confere existência, ancestralidade e igualdade byte a byte do script.
 
 ```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/kewinho-prog/sextou-install/main/install.sh)" -- \
-  [--provedor codex|claude|gemini|opencode|local|codex-local]
+BOOTSTRAP_SOURCE_SHA="NAO_PUBLICAR_ATE_COMMIT_A"
+/bin/bash -c "$(curl -fsSL "https://raw.githubusercontent.com/kewinho-prog/sextou-install/$BOOTSTRAP_SOURCE_SHA/install.sh")" -- --provedor codex
 ```
 
-Ou, já com o repositório baixado:
+O contrato aceita `claude`, `codex`, `gemini`, `opencode`, `local` e
+`codex-local`. Isso valida apenas o nome pedido. A prévia do SextouCore é quem
+confirma se a release fixada possui um lançador para a rota; o bootstrap nunca
+declara autenticação, funcionamento ou custo como comprovados.
+
+O processo usa dois estágios:
+
+1. o bootstrap clona uma tag numa pasta temporária, confere tag + SHA, busca
+   `origin/main` e prova que o SHA pertence ao histórico publicado antes de
+   executar somente a prévia do Core;
+2. depois de uma prévia bem-sucedida, ele cria `~/.sextou/core` e mostra o
+   comando exato com `--aplicar` para a pessoa executar.
+
+Release fixada:
+
+| Campo | Valor |
+|---|---|
+| Tag | `v0.2.0-rc.2` |
+| SHA fixado | [`release.json`](release.json) |
+
+Se a tag não existir, apontar para outro SHA ou estiver fora do histórico de
+`origin/main`, nada do Core é executado. `main` serve apenas como prova de
+proveniência; nunca vira versão alternativa.
+
+Node 20, 23 e 25 são recusados. Versões 24 diferentes de `24.21.0` também
+ficam fora desta matriz até serem homologadas. A transição de instalações
+antigas em Node 20 pertence ao atualizador, não ao bootstrap de instalação nova.
+
+## Atualizar
+
+O bootstrap recusa qualquer checkout já existente e aponta para o atualizador:
 
 ```bash
-bash instalador/instalar.sh --adaptativo [--provedor codex]
+bash "$HOME/.sextou/core/instalador/atualizar.sh"
 ```
 
-O que este script faz, em ordem:
+Uma instalação antiga em `~/.prima/core` também bloqueia uma instalação nova;
+use o atualizador que já existe nesse caminho. Não há migração ou sobrescrita
+automática no bootstrap.
 
-1. **Confere** git, Node **24+** e o cliente `gh` — sem instalar nada sozinho; só sugere o comando oficial de cada dependência.
-2. **Autentica** no repositório, só depois de você confirmar no terminal, e só se ainda não houver login. Sem terminal interativo e sem login, falha (não fica esperando).
-3. **Confere o acesso** ao repositório separadamente do login: login válido não garante permissão de leitura.
-4. **Reconhece** um checkout já existente sem mexer nele — sem fetch, sem merge, sem migração automática de `~/.prima`. Se o que existir não for um checkout do repositório esperado, for inesperado/não vazio, ou passar por um link simbólico, o script para e diz o que fazer.
-5. **Baixa** por HTTPS quando ainda não existe checkout. Se falhar, nada é apagado à força e nenhuma mensagem de sucesso é exibida.
-6. **Delega** ao instalador adaptativo do Core (`instalador/instalar.sh --adaptativo`), que faz o diagnóstico de verdade — provedor, credenciais, capacidades. Continua sendo prévia (config-preview): nada é aplicado. Se a prévia falhar, o código de saída é propagado e nenhuma instrução de aplicação é mostrada.
-7. Mostra o comando exato para aplicar depois, com as mesmas opções escolhidas, mais `--aplicar` — `--aplicar` nunca é aceito nesta primeira invocação.
+O passo a passo visual, a aplicação e a recuperação sem apagar arquivos estão
+em [docs/instalar-no-mac.md](docs/instalar-no-mac.md).
 
-O instalador não pergunta nem aceita o nome da assistente. Depois da
-configuração, a primeira conversa real com a IA pergunta exatamente
-`Como você quer me chamar?`; só a resposta confirmada cria a identidade.
-Se você cancelar uma escolha interativa, o processo termina como cancelado
-e não mostra o comando de aplicação.
+Depois da aplicação, a primeira conversa precisa começar com a resposta exata:
 
-## O que NÃO é
+> Como você quer me chamar?
 
-- Não é a instalação inteira: quem confirma o resultado é o instalador adaptativo do Core, não este script.
-- Não instala pacotes do sistema automaticamente, não garante chaveiro de credenciais, não promete inferência gratuita, prontidão operacional, skills instaladas nem suporte a provedores arbitrários — só aos listados acima.
-- Não exige Claude Code instalado nem diretório `~/.claude`.
-- Se o checkout baixado ainda não tiver `instalador/instalar.sh` (instalador adaptativo candidato ainda não publicado nessa versão), o script recusa com o código estável `ADAPTIVE_INSTALLER_UNAVAILABLE` — nunca cai para um caminho antigo.
+## Verificar localmente
 
-## Variáveis
+Os testes criam um repositório Git sintético local. Não acessam o SextouCore,
+GitHub, contas ou dados pessoais.
 
-`SEXTOU_CORE` (ou, por compatibilidade, `PRIMA_CORE`) escolhe onde o Core fica. Padrão: `~/.sextou/core`.
+```bash
+bash -n install.sh
+python3 -m unittest discover -s tests -v
+git diff --check
+```
 
----
-
-**Este repositório contém apenas o `install.sh`.** É público só porque o servidor de arquivos brutos não entrega repositório privado sem autenticação — a instalação precisa começar de algum lugar.
+O CI executa as mesmas verificações. `release.json` e o bloco de pin em
+`install.sh` são comparados por teste para que a troca do SHA seja pequena e
+revisável.

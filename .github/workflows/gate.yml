@@ -1,0 +1,37 @@
+name: gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap-offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout do bootstrap público
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Preparar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validar sintaxe do shell
+        run: bash -n install.sh
+
+      - name: Validar fonte imutável do bootstrap
+        run: PYTHONPATH=tests python -c 'from test_bootstrap import verify_current_publication_gate; verify_current_publication_gate()'
+
+      - name: Rodar testes offline
+        run: python -m unittest discover -s tests -v
+
+      - name: Conferir whitespace do diff
+        run: git diff --check
