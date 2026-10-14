@@ -218,6 +218,17 @@ if [[ ! -f "$ADAPTATIVO" || -L "$ADAPTATIVO" || ! -f "$DESTINO/instalador/instal
   exit 1
 fi
 
+# Um remoto reconhecido não prova que o instalador veio de um commit nem que
+# seus bytes continuam intactos. Preserve edições locais sem executá-las.
+REVISAO="$(git -C "$DESTINO" rev-parse --verify 'HEAD^{commit}' 2>/dev/null)" || REVISAO=""
+ALTERACOES="$(git -C "$DESTINO" status --porcelain --untracked-files=normal 2>/dev/null)"; STATUS_GIT=$?
+if [[ ! "$REVISAO" =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ || "$STATUS_GIT" != 0 || -n "$ALTERACOES" ]] || \
+   ! git -C "$DESTINO" ls-files --error-unmatch instalador/instalar.sh instalador/instalar-adaptativo.mjs >/dev/null 2>&1; then
+  falta "CHECKOUT_NAO_VALIDADO" "o checkout está incompleto ou contém alterações locais" \
+    "preserve seus arquivos e revise o checkout antes de executar o instalador"
+  exit 1
+fi
+
 # ── Delegação: array, sem eval, prévia apenas ────────────────────────────
 ARGS=(--adaptativo)
 [[ -n "$PROVEDOR" ]] && ARGS+=(--provedor "$PROVEDOR")

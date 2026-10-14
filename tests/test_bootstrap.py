@@ -22,7 +22,15 @@ while [[ "${1:-}" == "-c" ]]; do shift 2; done
 if [[ "$1" == "-C" ]]; then
   dir="$2"
   shift 2
-  if [[ "$1" == "rev-parse" ]]; then echo true; exit 0; fi
+  if [[ "$1" == "rev-parse" ]]; then
+    if [[ "${2:-}" == "--verify" ]]; then
+      printf '%040d\\n' 1
+    else
+      echo true
+    fi
+    exit 0
+  fi
+  if [[ "$1" == "status" || "$1" == "ls-files" ]]; then exit 0; fi
   if [[ "$1" == "remote" && "$2" == "get-url" && "$3" == "origin" ]]; then
     if [[ -f "$dir/.git/remote-url" ]]; then
       cat "$dir/.git/remote-url"
