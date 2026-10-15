@@ -4,6 +4,12 @@ import stat
 import subprocess
 import tempfile
 import unittest
+import errno
+import select
+import time
+
+if os.name == "posix":
+    import pty
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INSTALL_SH = os.path.join(REPO_ROOT, "install.sh")
@@ -22,7 +28,15 @@ while [[ "${1:-}" == "-c" ]]; do shift 2; done
 if [[ "$1" == "-C" ]]; then
   dir="$2"
   shift 2
-  if [[ "$1" == "rev-parse" ]]; then echo true; exit 0; fi
+  if [[ "$1" == "rev-parse" ]]; then
+    if [[ "${2:-}" == "--verify" ]]; then
+      printf '%040d\\n' 1
+    else
+      echo true
+    fi
+    exit 0
+  fi
+  if [[ "$1" == "status" || "$1" == "ls-files" ]]; then exit 0; fi
   if [[ "$1" == "remote" && "$2" == "get-url" && "$3" == "origin" ]]; then
     if [[ -f "$dir/.git/remote-url" ]]; then
       cat "$dir/.git/remote-url"
@@ -72,6 +86,7 @@ case "${1:-} ${2:-}" in
   "auth setup-git")
     exit 0 ;;
   "auth login")
+    : > "${FAKE_GH_LOGIN_MARKER:-/dev/null}"
     [[ "${FAKE_GH_LOGIN_OK:-1}" == "1" ]] && exit 0 || exit 1 ;;
   "repo view")
     [[ "${FAKE_GH_ACCESS:-1}" == "1" ]] && exit 0 || exit 1 ;;
@@ -136,6 +151,75 @@ class BootstrapTestCase(unittest.TestCase):
             text=True,
         )
 
+    def run_bootstrap_interactive(self, reply, env):
+        master, slave = pty.openpty()
+        process = None
+        output = bytearray()
+        replied = False
+        try:
+            process = subprocess.Popen(
+                ["bash", INSTALL_SH], env=env, cwd=self.tmp,
+                stdin=slave, stdout=slave, stderr=slave,
+            )
+            os.close(slave)
+            slave = None
+            deadline = time.monotonic() + 10
+            while True:
+                if select.select([master], [], [], 0.05)[0]:
+                    try:
+                        chunk = os.read(master, 4096)
+                    except OSError as error:
+                        if error.errno != errno.EIO:
+                            raise
+                        chunk = b""
+                    output.extend(chunk)
+                    self.assertLess(len(output), 1024 * 1024, "terminal output exceeded fixture limit")
+                    if not replied and b"Continuar? [S/n]" in output:
+                        os.write(master, reply)
+                        replied = True
+                if process.poll() is not None:
+                    break
+                if time.monotonic() > deadline:
+                    raise subprocess.TimeoutExpired(process.args, 10, output=bytes(output))
+            self.assertTrue(replied, output.decode(errors="replace"))
+            return process.returncode, output.decode(errors="replace")
+        finally:
+            if process is not None and process.poll() is None:
+                process.kill()
+                process.wait()
+            if slave is not None:
+                os.close(slave)
+            os.close(master)
+
+    @unittest.skipUnless(os.name == "posix", "terminal fixture requires POSIX PTY")
+    def test_login_cancellation_never_authenticates(self):
+        for reply in (b"\x04", b"n\n"):
+            with self.subTest(reply=reply):
+                marker = os.path.join(self.tmp, "login_attempted-" + reply.hex())
+                destination = self.core + "-" + reply.hex()
+                # Ctrl-D in a terminal is EOF, not confirmation of the default.
+                status, stderr = self.run_bootstrap_interactive(
+                    reply, self.base_env(FAKE_GH_AUTHED="0", FAKE_GH_LOGIN_MARKER=marker, SEXTOU_CORE=destination),
+                )
+                self.assertFalse(os.path.exists(marker))
+                self.assertFalse(os.path.exists(destination))
+                self.assertEqual(status, 130, stderr)
+
+    @unittest.skipUnless(os.name == "posix", "terminal fixture requires POSIX PTY")
+    def test_login_confirmation_can_continue_to_preview(self):
+        self.prepare_existing_checkout()
+        self.write_adaptativo()
+        marker = os.path.join(self.tmp, "login_confirmed")
+        for reply in (b"\n", b"s\n"):
+            with self.subTest(reply=reply):
+                status, stderr = self.run_bootstrap_interactive(
+                    reply, self.base_env(FAKE_GH_AUTHED="0", FAKE_GH_LOGIN_MARKER=marker),
+                )
+                self.assertEqual(status, 0, stderr)
+                self.assertTrue(os.path.isfile(marker))
+                os.unlink(marker)
+
+
     def test_preview_no_claude_codex(self):
         self.assertFalse(os.path.isdir(os.path.join(self.home, ".claude")))
         self.prepare_existing_checkout()
@@ -179,9 +263,12 @@ class BootstrapTestCase(unittest.TestCase):
         self.assertIn("node", (res.stdout + res.stderr).lower())
 
     def test_node_missing(self):
-        os.remove(os.path.join(self.bin, "node"))
+        # Keep the fixture ahead of any Node installed on the host.
+        write_exec(os.path.join(self.bin, "node"), "#!/usr/bin/env bash\nexit 127\n")
         res = self.run_bootstrap([])
         self.assertNotEqual(res.returncode, 0)
+        self.assertIn("node", (res.stdout + res.stderr).lower())
+        self.assertFalse(os.path.exists(self.core))
 
     def test_existing_checkout_no_fetch_merge(self):
         self.prepare_existing_checkout()
