@@ -156,6 +156,8 @@ ok "acesso a $REPO confirmado"
 # na primeira execução.
 verificar_ancestrais_symlink() {
   local atual="$1" pai
+  # A barra final faz -L seguir o diretório; inspecione o link em si.
+  while [[ "$atual" != "/" && "$atual" == */ ]]; do atual="${atual%/}"; done
   while [[ "$atual" != "/" && "$atual" != "." && -n "$atual" ]]; do
     [[ -L "$atual" ]] && return 1
     pai="$(dirname "$atual")"

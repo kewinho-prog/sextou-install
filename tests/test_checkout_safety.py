@@ -61,6 +61,40 @@ class CheckoutSafetyTest(unittest.TestCase):
         with open(os.path.join(self.tmp, 'adapt_args.txt')) as file:
             self.assertEqual(file.read().splitlines(), ['--adaptativo', '--provedor', 'codex'])
 
+    def assert_trailing_symlink_preserved(self, suffix):
+        self.real_checkout(commit=True)
+        outside = os.path.join(self.tmp, 'outside')
+        link = os.path.join(self.tmp, 'destination-link')
+        os.mkdir(outside)
+        os.symlink(outside, link)
+        # Redirect only clone to a real local Git fixture; never contact GitHub.
+        fixtures.write_exec(os.path.join(self.bin, 'git'), """#!/bin/bash
+while [[ "${1:-}" == "-c" ]]; do shift 2; done
+if [[ "${1:-}" == "clone" ]]; then
+  destination="${@: -1}"
+  exec /usr/bin/git -c core.hooksPath=/dev/null clone --quiet "$SYNTHETIC_SOURCE" "$destination"
+fi
+exec /usr/bin/git "$@"
+""")
+        result = self.run_bootstrap([], env=self.base_env(
+            SEXTOU_CORE=link + suffix, SYNTHETIC_SOURCE=self.core))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(os.listdir(outside), [], 'must refuse before clone writes through the symlink')
+        self.assertTrue(os.path.islink(link))
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, 'adapt_args.txt')))
+
+    def test_symlink_with_one_trailing_slash_does_not_write(self):
+        self.assert_trailing_symlink_preserved('/')
+
+    def test_symlink_with_multiple_trailing_slashes_does_not_write(self):
+        self.assert_trailing_symlink_preserved('///')
+
+    def test_real_checkout_accepts_trailing_slashes(self):
+        self.real_checkout(commit=True)
+        result = self.run_bootstrap([], env=self.base_env(SEXTOU_CORE=self.core + '///'))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(os.path.exists(os.path.join(self.tmp, 'adapt_args.txt')))
+
 
 if __name__ == '__main__':
     unittest.main()
