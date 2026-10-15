@@ -263,9 +263,12 @@ class BootstrapTestCase(unittest.TestCase):
         self.assertIn("node", (res.stdout + res.stderr).lower())
 
     def test_node_missing(self):
-        os.remove(os.path.join(self.bin, "node"))
+        # Keep the fixture ahead of any Node installed on the host.
+        write_exec(os.path.join(self.bin, "node"), "#!/usr/bin/env bash\nexit 127\n")
         res = self.run_bootstrap([])
         self.assertNotEqual(res.returncode, 0)
+        self.assertIn("node", (res.stdout + res.stderr).lower())
+        self.assertFalse(os.path.exists(self.core))
 
     def test_existing_checkout_no_fetch_merge(self):
         self.prepare_existing_checkout()
