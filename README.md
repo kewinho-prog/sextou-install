@@ -33,7 +33,8 @@ O instalador não pergunta nem aceita o nome da assistente. Depois da
 configuração, a primeira conversa real com a IA pergunta exatamente
 `Como você quer me chamar?`; só a resposta confirmada cria a identidade.
 Se você cancelar uma escolha interativa, o processo termina como cancelado
-e não mostra o comando de aplicação.
+e não mostra o comando de aplicação. No pedido de login, responder `n` ou
+fechar a entrada com Ctrl-D cancela com código `130`, sem iniciar autenticação.
 
 ## O que NÃO é
 

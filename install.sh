@@ -135,8 +135,11 @@ if ! gh auth status >/dev/null 2>&1; then
   aqui no terminal — é só colar lá e autorizar.
 
 LOGIN
-  read -r -p "  Continuar? [S/n] " r
-  [[ "${r:-s}" =~ ^[SsYy]?$ ]] || { echo "  Cancelado."; exit 0; }
+  if ! read -r -p "  Continuar? [S/n] " r; then
+    printf '\n  Cancelado.\n'
+    exit 130
+  fi
+  [[ "${r:-s}" =~ ^[SsYy]?$ ]] || { echo "  Cancelado."; exit 130; }
   gh auth login --web --git-protocol https || { falta "o login não foi concluído" "sem ele não há como baixar um repositório privado" "rode: gh auth login"; exit 1; }
 fi
 ok "login presente"
