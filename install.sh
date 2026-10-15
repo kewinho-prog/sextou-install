@@ -226,10 +226,53 @@ fi
 # Um remoto reconhecido não prova que o instalador veio de um commit nem que
 # seus bytes continuam intactos. Preserve edições locais sem executá-las.
 REVISAO="$(git -C "$DESTINO" rev-parse --verify 'HEAD^{commit}' 2>/dev/null)" || REVISAO=""
-ALTERACOES="$(git -C "$DESTINO" status --porcelain --untracked-files=normal 2>/dev/null)"; STATUS_GIT=$?
+ALTERACOES="$(GIT_OPTIONAL_LOCKS=0 git -C "$DESTINO" status --porcelain --untracked-files=normal 2>/dev/null)"; STATUS_GIT=$?
 if [[ ! "$REVISAO" =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ || "$STATUS_GIT" != 0 || -n "$ALTERACOES" ]] || \
    ! git -C "$DESTINO" ls-files --error-unmatch instalador/instalar.sh instalador/instalar-adaptativo.mjs >/dev/null 2>&1; then
   falta "CHECKOUT_NAO_VALIDADO" "o checkout está incompleto ou contém alterações locais" \
+    "preserve seus arquivos e revise o checkout antes de executar o instalador"
+  exit 1
+fi
+
+# status não examina bytes escondidos por assume-unchanged/skip-worktree.
+# A verificação usa somente módulos nativos, não código nem filtros do Core.
+if ! node --input-type=commonjs - "$DESTINO" <<'CHECKOUT_BYTES'
+const fs = require('node:fs');
+const path = require('node:path');
+const crypto = require('node:crypto');
+const { spawnSync } = require('node:child_process');
+try {
+  const root = path.resolve(process.argv[2]);
+  const tree = spawnSync('git', ['-C', root, 'ls-tree', '-rz', '--full-tree', 'HEAD'],
+    { maxBuffer: 32 * 1024 * 1024 });
+  if (tree.status !== 0 || tree.error || !tree.stdout.length) throw new Error();
+  let start = 0, end;
+  while ((end = tree.stdout.indexOf(0, start)) !== -1) {
+    const row = tree.stdout.subarray(start, end);
+    start = end + 1;
+    const tab = row.indexOf(9);
+    const [mode, kind, expected] = row.subarray(0, tab).toString('ascii').split(' ');
+    if (tab < 0 || kind !== 'blob' || !['100644', '100755'].includes(mode) ||
+        !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(expected)) throw new Error();
+    const relative = new TextDecoder('utf8', { fatal: true }).decode(row.subarray(tab + 1));
+    const parts = relative.split('/');
+    if (parts.some((part) => !part || part === '.' || part === '..')) throw new Error();
+    let current = root;
+    for (let index = 0; index < parts.length; index++) {
+      current = path.join(current, parts[index]);
+      const stat = fs.lstatSync(current);
+      if (stat.isSymbolicLink() || (index < parts.length - 1 ? !stat.isDirectory() : !stat.isFile())) throw new Error();
+    }
+    const bytes = fs.readFileSync(current);
+    const algorithm = expected.length === 40 ? 'sha1' : 'sha256';
+    const actual = crypto.createHash(algorithm).update('blob ' + bytes.length + '\0').update(bytes).digest('hex');
+    if (actual !== expected) throw new Error();
+  }
+  if (start !== tree.stdout.length) throw new Error();
+} catch { process.exit(1); }
+CHECKOUT_BYTES
+then
+  falta "CHECKOUT_NAO_VALIDADO" "o conteúdo real do checkout não corresponde a HEAD" \
     "preserve seus arquivos e revise o checkout antes de executar o instalador"
   exit 1
 fi

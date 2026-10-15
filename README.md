@@ -86,3 +86,9 @@ Uma prévia ou configuração aplicada ainda não comprova o funcionamento do ex
 ---
 
 **Este repositório contém o bootstrap `install.sh`, seus testes e documentação.** É público só porque o servidor de arquivos brutos não entrega repositório privado sem autenticação — a instalação precisa começar de algum lugar.
+
+### Integridade do checkout reconhecido
+
+Antes de delegar a prévia, o bootstrap compara os bytes reais de todos os arquivos rastreados com os blobs de `HEAD`, usando somente módulos nativos do Node. Alterações ocultadas por `assume-unchanged` ou `skip-worktree`, arquivos ausentes e links simbólicos em dependências são recusados sem apagar ou corrigir o checkout. Flags de índice com conteúdo intacto continuam aceitas. A verificação não executa filtros do Git nem código do Core; o status é consultado sem locks opcionais que atualizem o índice.
+
+O repositório do Core define LF por `.gitattributes`. Conteúdo reescrito por filtros locais ou line endings diferentes exige revisão antes de execução. Isso verifica correspondência com o commit local; não substitui a confiança na origem e na revisão escolhida, nem impede alterações concorrentes feitas por outro processo durante a execução.
